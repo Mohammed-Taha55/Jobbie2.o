@@ -3,6 +3,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const ApplicationLog = require('../../models/ApplicationLog');
 const JobSearch = require('../../models/JobSearch');
 const logger = require('../../utils/logger');
+const { getBrowserOptions } = require('../../utils/browserOptions');
 
 puppeteer.use(StealthPlugin());
 
@@ -21,16 +22,7 @@ const applyIndeed = async ({ searchDoc, credential, resumePath, io, userId }) =>
   try {
     emit('log', { message: 'Launching browser...', type: 'info' });
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--window-size=1366,768',
-      ],
-      defaultViewport: { width: 1366, height: 768 },
-    });
+    browser = await puppeteer.launch(getBrowserOptions());
 
     const page = await browser.newPage();
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });

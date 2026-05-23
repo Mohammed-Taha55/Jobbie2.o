@@ -1,0 +1,32 @@
+# nixpacks.toml — tells Railway's Nixpacks builder to install Chrome for Puppeteer
+# and how to build/start the monorepo server
+
+[phases.setup]
+nixPkgs = [
+  "nodejs_18",
+  "chromium",
+  "nss",
+  "freetype",
+  "freetype.dev",
+  "harfbuzz",
+  "ca-certificates",
+  "ttf-opensans",
+  "glib",
+  "gtk3",
+  "libdrm",
+  "mesa",
+  "alsa-lib"
+]
+
+[phases.install]
+cmds = ["npm install --prefix server"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "node server/index.js"
+
+[variables]
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+PUPPETEER_EXECUTABLE_PATH = "/nix/var/nix/profiles/default/bin/chromium"

@@ -3,6 +3,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const ApplicationLog = require('../../models/ApplicationLog');
 const JobSearch = require('../../models/JobSearch');
 const logger = require('../../utils/logger');
+const { getBrowserOptions } = require('../../utils/browserOptions');
 
 puppeteer.use(StealthPlugin());
 
@@ -21,17 +22,7 @@ const applyLinkedIn = async ({ searchDoc, credential, resumePath, io, userId }) 
   try {
     emit('log', { message: 'Launching browser for LinkedIn...', type: 'info' });
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-dev-shm-usage',
-        '--window-size=1440,900',
-      ],
-      defaultViewport: { width: 1440, height: 900 },
-    });
+    browser = await puppeteer.launch(getBrowserOptions());
 
     const page = await browser.newPage();
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
