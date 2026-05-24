@@ -57,8 +57,28 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
       try {
         const cookiesArr = JSON.parse(credential.cookies);
         if (Array.isArray(cookiesArr) && cookiesArr.length > 0) {
-          emit('log', { message: 'Injecting session cookies to bypass login...', type: 'info' });
-          await page.setCookie(...cookiesArr);
+          emit('log', { message: 'Sanitizing and injecting session cookies...', type: 'info' });
+          
+          const sanitizedCookies = cookiesArr.map(c => {
+            let sameSite = c.sameSite;
+            if (sameSite === 'no_restriction' || sameSite === 'None') sameSite = 'None';
+            else if (sameSite === 'unspecified' || sameSite === 'lax') sameSite = 'Lax';
+            else if (sameSite === 'strict') sameSite = 'Strict';
+            else sameSite = undefined;
+
+            return {
+              name: c.name,
+              value: c.value,
+              domain: c.domain,
+              path: c.path || '/',
+              expires: c.expirationDate || c.expires,
+              httpOnly: c.httpOnly,
+              secure: c.secure,
+              sameSite
+            };
+          });
+
+          await page.setCookie(...sanitizedCookies);
           await page.goto('https://www.naukri.com/mnj/dashboard', { waitUntil: 'networkidle2', timeout: 30000 });
           await randomDelay(2000, 4000);
           
@@ -70,7 +90,8 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
           }
         }
       } catch (err) {
-        emit('log', { message: 'Failed to parse cookies JSON. Falling back to password login...', type: 'warning' });
+        console.error('Cookie injection error:', err);
+        emit('log', { message: `Cookie injection failed: ${err.message}`, type: 'error' });
       }
     }
 
