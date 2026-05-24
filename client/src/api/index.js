@@ -2,9 +2,16 @@ import axios from 'axios';
 
 // In production: VITE_API_URL = https://your-railway-app.up.railway.app
 // In development: falls back to '/api' (handled by Vite proxy)
-const BASE = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api`
-  : '/api';
+let rawUrl = import.meta.env.VITE_API_URL || '';
+if (rawUrl && !rawUrl.startsWith('http')) {
+  rawUrl = `https://${rawUrl}`;
+}
+if (rawUrl.endsWith('/')) {
+  rawUrl = rawUrl.slice(0, -1);
+}
+
+const BASE = rawUrl ? `${rawUrl}/api` : '/api';
+
 
 const api = axios.create({
   baseURL: BASE,

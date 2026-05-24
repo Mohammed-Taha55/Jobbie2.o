@@ -84,10 +84,12 @@ const AutomatePage = () => {
       }
     };
 
-    fetchPrereqs();
-
     // Socket.io — connect to Express server (Railway in prod, localhost:5000 in dev)
-    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    let rawUrl = import.meta.env.VITE_API_URL || '';
+    if (rawUrl && !rawUrl.startsWith('http')) rawUrl = `https://${rawUrl}`;
+    if (rawUrl.endsWith('/')) rawUrl = rawUrl.slice(0, -1);
+    
+    const socketUrl = rawUrl || 'http://localhost:5000';
     socketRef.current = io(socketUrl, { transports: ['websocket', 'polling'] });
     const socket = socketRef.current;
 
