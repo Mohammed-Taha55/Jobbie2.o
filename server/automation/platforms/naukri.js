@@ -79,7 +79,11 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
     }
 
     // Check for OTP Request
-    const otpSelectors = ['#otp', 'input[name="otp"]', 'input[placeholder*="OTP" i]', '.otp-input'];
+    const otpSelectors = [
+      '#otp', 'input[name="otp"]', 'input[placeholder*="OTP" i]', '.otp-input',
+      'input[id*="otp" i]', 'input[class*="otp" i]', 'input[name*="otp" i]',
+      'input[id="verificationCode"]'
+    ];
     let otpField = null;
     for (const sel of otpSelectors) {
       otpField = await page.$(sel).catch(() => null);
