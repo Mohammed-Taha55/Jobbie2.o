@@ -1,6 +1,7 @@
 const JobSearch = require('../models/JobSearch');
 const { startAutomation, stopAutomation, getActiveSession, getAllActiveSessions } = require('../automation/queue');
 const logger = require('../utils/logger');
+const eventBus = require('../utils/eventBus');
 
 // @desc    Start automation session
 // @route   POST /api/automation/start
@@ -92,4 +93,18 @@ const getStatus = async (req, res) => {
   });
 };
 
-module.exports = { startSession, stopSession, getSessions, getStatus };
+// @desc    Submit OTP for automation
+// @route   POST /api/automation/otp/:id
+const submitOtp = async (req, res) => {
+  const { id } = req.params;
+  const { otp } = req.body;
+  
+  if (!otp) return res.status(400).json({ success: false, message: 'OTP is required' });
+
+  // Emit the OTP over the internal event bus. The Puppeteer script is listening for this exact event name.
+  eventBus.emit(`otp:${id}`, otp);
+
+  res.json({ success: true, message: 'OTP submitted successfully' });
+};
+
+module.exports = { startSession, stopSession, getSessions, getStatus, submitOtp };

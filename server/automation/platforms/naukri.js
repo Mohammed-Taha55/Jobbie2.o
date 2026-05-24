@@ -4,6 +4,7 @@ const ApplicationLog = require('../../models/ApplicationLog');
 const JobSearch = require('../../models/JobSearch');
 const logger = require('../../utils/logger');
 const { getBrowserOptions } = require('../../utils/browserOptions');
+const eventBus = require('../../utils/eventBus');
 
 puppeteer.use(StealthPlugin());
 
@@ -77,10 +78,44 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
       if (errText && errText.length > 0) throw new Error(`Naukri login failed: ${errText}`);
     }
 
+    // Check for OTP Request
+    const otpSelectors = ['#otp', 'input[name="otp"]', 'input[placeholder*="OTP" i]', '.otp-input'];
+    let otpField = null;
+    for (const sel of otpSelectors) {
+      otpField = await page.$(sel).catch(() => null);
+      if (otpField) break;
+    }
+
+    if (otpField) {
+      emit('log', { message: 'OTP Required. Waiting for user input...', type: 'warning' });
+      emit('otp_required', { message: 'Naukri has sent an OTP to your email. Please enter it here to continue.' });
+
+      // Pause automation and wait for the user to submit the OTP via the API -> EventBus
+      const otpPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('OTP timeout — you did not enter the OTP within 2 minutes.')), 120000);
+        eventBus.once(`otp:${searchId}`, (otpCode) => {
+          clearTimeout(timeout);
+          resolve(otpCode);
+        });
+      });
+
+      const otpCode = await otpPromise;
+      emit('log', { message: 'OTP received, submitting...', type: 'info' });
+      
+      await otpField.click();
+      await otpField.type(otpCode, { delay: 100 });
+      await randomDelay(500, 1000);
+
+      const otpSubmit = await page.$('button[type="submit"], button#submitOtp, .submit-btn').catch(() => null);
+      if (otpSubmit) await otpSubmit.click();
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 25000 }).catch(() => {});
+      await randomDelay(2000, 4000);
+    }
+
     // Verify we're logged in by checking URL / page content
     const loggedInUrl = page.url();
     if (loggedInUrl.includes('/login') || loggedInUrl.includes('/nlogin')) {
-      throw new Error('Naukri login failed — still on login page. Check credentials.');
+      throw new Error('Naukri login failed — still on login page. Check credentials or OTP.');
     }
 
     emit('log', { message: 'Logged into Naukri successfully', type: 'success' });

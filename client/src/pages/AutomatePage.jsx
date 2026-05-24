@@ -46,6 +46,9 @@ const AutomatePage = () => {
   const [success, setSuccess] = useState('');
   const [currentJob, setCurrentJob] = useState(null);
   const [progress, setProgress] = useState({ applied: 0, max: 10 });
+  const [otpPrompt, setOtpPrompt] = useState(null); // { searchId: string, message: string }
+  const [otpValue, setOtpValue] = useState('');
+  const [submittingOtp, setSubmittingOtp] = useState(false);
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -117,6 +120,10 @@ const AutomatePage = () => {
     socket.on('automation:error', ({ message }) => {
       addLog(`Error: ${message}`, 'error');
     });
+    socket.on('automation:otp_required', (data) => {
+      setOtpPrompt({ searchId: data.searchId, message: data.message });
+      addLog(`OTP Required: ${data.message}`, 'warning');
+    });
 
     return () => socket.disconnect();
   }, []);
@@ -158,10 +165,27 @@ const AutomatePage = () => {
       await api.post(`/automation/stop/${status.session._id}`);
       setStatus((prev) => ({ ...prev, running: false, session: null }));
       setConsoleLogs((prev) => [...prev, { message: 'Automation stopped by user.', type: 'warning', timestamp: new Date() }]);
+      setOtpPrompt(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to stop session');
     } finally {
       setStopping(false);
+    }
+  };
+
+  const submitOtp = async (e) => {
+    e.preventDefault();
+    if (!otpValue || !otpPrompt) return;
+    setSubmittingOtp(true);
+    try {
+      await api.post(`/automation/otp/${otpPrompt.searchId}`, { otp: otpValue });
+      setOtpPrompt(null);
+      setOtpValue('');
+      setConsoleLogs((prev) => [...prev, { message: 'OTP submitted, resuming automation...', type: 'info', timestamp: new Date() }]);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to submit OTP');
+    } finally {
+      setSubmittingOtp(false);
     }
   };
 
@@ -419,6 +443,58 @@ const AutomatePage = () => {
           )}
         </div>
       </div>
+
+      {/* ── OTP MODAL ────────────────────────────────────────── */}
+      {otpPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in">
+          <div className="bg-surface-1 border border-border shadow-2xl rounded-2xl w-full max-w-sm p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+            
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle size={24} className="text-amber-500" />
+              </div>
+              <h3 className="text-xl font-bold text-text-primary">OTP Required</h3>
+              <p className="text-text-secondary text-sm mt-2 leading-relaxed">
+                {otpPrompt.message}
+              </p>
+            </div>
+
+            <form onSubmit={submitOtp} className="space-y-4">
+              <div>
+                <input
+                  type="text"
+                  className="input-field text-center text-xl tracking-widest py-3 font-mono"
+                  placeholder="123456"
+                  value={otpValue}
+                  onChange={(e) => setOtpValue(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOtpPrompt(null)}
+                  className="btn-secondary flex-1 justify-center"
+                  disabled={submittingOtp}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary flex-1 justify-center bg-amber-500 hover:bg-amber-600 border-amber-500"
+                  disabled={submittingOtp}
+                >
+                  {submittingOtp ? <Loader2 size={18} className="animate-spin" /> : 'Submit OTP'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
