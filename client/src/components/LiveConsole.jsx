@@ -41,12 +41,19 @@ const LiveConsole = ({ logs = [], isRunning = false }) => {
           <p className="text-text-muted italic">Waiting for automation to start...</p>
         ) : (
           logs.map((log, i) => (
-            <div key={i} className="flex items-start gap-2 animate-in">
+            <div key={i} className="flex items-start gap-2 animate-in flex-wrap">
               <span className="text-text-muted shrink-0 mt-0.5">
                 {new Date(log.timestamp).toLocaleTimeString()}
               </span>
               <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${typeDot[log.type] || 'bg-gray-400'}`} />
-              <span className={typeColors[log.type] || 'text-text-secondary'}>{log.message}</span>
+              <div className="flex-1 min-w-0">
+                <span className={typeColors[log.type] || 'text-text-secondary'}>{log.message}</span>
+                {log.type === 'screenshot' && log.image && (
+                  <div className="mt-2 mb-2">
+                    <img src={log.image} alt="Browser screenshot" className="rounded-md border border-border/50 max-w-full h-auto object-contain max-h-[350px]" />
+                  </div>
+                )}
+              </div>
             </div>
           ))
         )}

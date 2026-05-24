@@ -115,6 +115,10 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
     // Verify we're logged in by checking URL / page content
     const loggedInUrl = page.url();
     if (loggedInUrl.includes('/login') || loggedInUrl.includes('/nlogin')) {
+      const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
+      const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
+      emit('log', { message: 'Screenshot of the failed login page:', type: 'screenshot', image: base64Img });
+      
       throw new Error('Naukri login failed — still on login page. Check credentials or OTP.');
     }
 
