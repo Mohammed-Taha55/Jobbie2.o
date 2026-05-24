@@ -34,7 +34,22 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
     browser = await puppeteer.launch(getBrowserOptions());
 
     const page = await browser.newPage();
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+    
+    // Extreme Stealth: Mask Linux Data Center fingerprint
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-IN,en-US;q=0.9,en;q=0.8',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Dest': 'document',
+    });
+    
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-IN', 'en-US', 'en'] });
+      // Pass webdriver check
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
 
     // ─── LOGIN ─────────────────────────────────────────────────────────────────
     emit('log', { message: 'Navigating to Naukri login...', type: 'info' });

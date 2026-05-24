@@ -22,6 +22,10 @@ const getBrowserOptions = () => {
     headless: true,
     args,
     defaultViewport: { width: 1440, height: 900 },
+    env: {
+      ...process.env,
+      TZ: 'Asia/Kolkata', // Force Indian timezone
+    }
   };
 
   // In production, use the Nix-installed Chromium (set via PUPPETEER_EXECUTABLE_PATH env var)
