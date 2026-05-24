@@ -90,11 +90,18 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
     const errEl = await page.$('.loginErrorMsg, .error-msg, [class*="error"]').catch(() => null);
     if (errEl) {
       const errText = await page.evaluate((el) => el.innerText, errEl).catch(() => '');
-      if (errText && errText.length > 0) throw new Error(`Naukri login failed: ${errText}`);
+      if (errText && errText.length > 0) {
+        const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
+        const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
+        emit('log', { message: 'Screenshot of the error:', type: 'screenshot', image: base64Img });
+        throw new Error(`Naukri login failed: ${errText}`);
+      }
     }
 
     // ─── OTP DETECTION (Robust Text Scan) ───
-    if (page.url().includes('login')) {
+    const currentUrl = page.url();
+    // Only skip OTP check if we are definitively on the dashboard
+    if (!currentUrl.includes('/mnj/dashboard') && !currentUrl.includes('job-search')) {
       const needsOtp = await page.evaluate(() => {
         const text = document.body.innerText.toLowerCase();
         return text.includes('enter otp') || 
@@ -124,14 +131,15 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
         const otpSelectors = [
           '#otp', 'input[name="otp"]', 'input[placeholder*="OTP" i]', '.otp-input',
           'input[id*="otp" i]', 'input[class*="otp" i]', 'input[name*="otp" i]',
-          'input[id="verificationCode"]'
+          'input[id="verificationCode"]', 'input[type="number"]'
         ];
         let injected = false;
         for (const sel of otpSelectors) {
           const field = await page.$(sel).catch(() => null);
           if (field) {
             await field.click({ clickCount: 3 });
-            await field.type(otpCode, { delay: 100 });
+            // Type slowly using keyboard to allow React to auto-advance to next boxes if it's a 6-box input
+            await page.keyboard.type(otpCode, { delay: 200 });
             injected = true;
             break;
           }
@@ -155,10 +163,18 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
 
         await randomDelay(500, 1000);
 
-        // Try submitting
-        const otpSubmit = await page.$('button[type="submit"], button#submitOtp, .submit-btn, button').catch(() => null);
-        if (otpSubmit) await otpSubmit.click();
-        else await page.keyboard.press('Enter'); // Fallback to Enter key
+        // Try submitting (look specifically for Submit/Verify buttons to avoid clicking "Resend OTP")
+        const submitXPath = "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'submit') or contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'verify') or contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'login')]";
+        const otpSubmits = await page.$x(submitXPath).catch(() => []);
+        
+        if (otpSubmits && otpSubmits.length > 0) {
+          await otpSubmits[0].click();
+        } else {
+          // Fallback to searching by type, then Enter
+          const fallbackSubmit = await page.$('button[type="submit"], button#submitOtp').catch(() => null);
+          if (fallbackSubmit) await fallbackSubmit.click();
+          else await page.keyboard.press('Enter'); 
+        }
         
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 25000 }).catch(() => {});
         await randomDelay(2000, 4000);
