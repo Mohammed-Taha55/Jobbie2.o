@@ -4,7 +4,7 @@ const { encrypt, decrypt } = require('../utils/encryption');
 // @desc    Save platform credential
 // @route   POST /api/credentials
 const saveCredential = async (req, res) => {
-  const { platform, username, password, label } = req.body;
+  const { platform, username, password, label, cookies } = req.body;
 
   if (!platform || !username || !password) {
     return res.status(400).json({ success: false, message: 'Platform, username and password are required' });
@@ -14,7 +14,7 @@ const saveCredential = async (req, res) => {
 
   const credential = await PlatformCredential.findOneAndUpdate(
     { userId: req.user._id, platform },
-    { username, encryptedPassword, label: label || `${platform} account` },
+    { username, encryptedPassword, cookies: cookies || '', label: label || `${platform} account` },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 

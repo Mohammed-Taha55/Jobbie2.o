@@ -39,7 +39,7 @@ const startAutomation = async ({ searchDoc, io, userId }) => {
 
     const opts = {
       searchDoc,
-      credential: { username: credential.username, password: decryptedPassword },
+      credential: { username: credential.username, password: decryptedPassword, cookies: credential.cookies },
       resumePath: resume.path,
       io,
       userId,
