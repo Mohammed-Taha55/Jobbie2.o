@@ -64,9 +64,54 @@ npm install
 npm run dev
 ```
 
-This starts:
-- **Backend API** at `http://localhost:5000`
-- **React Frontend** at `http://localhost:5173`
+The application will start:
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:5000`
+
+---
+
+## 📖 How to Use Jobbie (User Guide)
+
+To prevent confusion and ensure the automation runs flawlessly, follow these steps in order.
+
+### Step 1: Create an Account
+1. Open the application.
+2. Click **Sign Up** to create a Jobbie account.
+3. You will be redirected to the Dashboard.
+
+### Step 2: Upload Your Resume
+1. Navigate to the **Resumes** tab in the sidebar.
+2. Click **Upload Resume** and select your PDF resume.
+3. This resume will be automatically injected when applying for jobs on LinkedIn or Indeed.
+
+### Step 3: Add Your Credentials & Cookies (Crucial Step)
+Because Jobbie automates real job boards (Naukri, Indeed, LinkedIn), these platforms have strict anti-bot security. If you just enter your password, the cloud server will likely get blocked. 
+
+**The ultimate way to bypass this is by using Session Cookies.**
+
+1. Go to the **Credentials** tab.
+2. Select the platform (e.g., Naukri).
+3. Open a new tab in your normal Chrome browser and log into Naukri manually.
+4. Install a free Chrome Extension like **[EditThisCookie](https://chrome.google.com/webstore/detail/editthiscookie/fngmhnnpilhplaeedifhccceomclgfbg)** or **Cookie-Editor**.
+5. Click the extension icon on the Naukri page and choose **Export**. (This copies your cookies as a huge JSON text block to your clipboard).
+6. Go back to Jobbie, paste that huge block of text into the **Session Cookies** text box.
+7. Click **Save**.
+
+*By injecting your cookies, Jobbie completely bypasses the login screen, OTPs, and Cloudflare CAPTCHAs!*
+
+### Step 4: Run Automation
+1. Navigate to the **Automate** tab.
+2. Select your Target Platform (e.g., Naukri).
+3. Select your saved Credential.
+4. Select your uploaded Resume.
+5. Enter your search filters (Keywords, Location, Experience).
+6. Click **Start Automation**.
+
+### Step 5: Watch the Live Console
+Once started, the **Live Console** will appear. It connects via WebSockets to show you exactly what the bot is doing in real-time.
+- If it says `Sanitizing and injecting session cookies...`, you successfully bypassed the login!
+- It will show you every job it finds, skips (if duplicate), and applies to.
+- You can stop the automation at any time by clicking the Stop button.
 
 ---
 
