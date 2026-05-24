@@ -1,17 +1,8 @@
 import axios from 'axios';
 
-// In production: VITE_API_URL = https://your-railway-app.up.railway.app
-// In development: falls back to '/api' (handled by Vite proxy)
-let rawUrl = import.meta.env.VITE_API_URL || '';
-if (rawUrl && !rawUrl.startsWith('http')) {
-  rawUrl = `https://${rawUrl}`;
-}
-if (rawUrl.endsWith('/')) {
-  rawUrl = rawUrl.slice(0, -1);
-}
-
-const BASE = rawUrl ? `${rawUrl}/api` : '/api';
-
+// In production, force the Railway backend URL to guarantee connectivity.
+const PROD_URL = 'https://server-production-4f35.up.railway.app';
+const BASE = import.meta.env.PROD ? `${PROD_URL}/api` : '/api';
 
 const api = axios.create({
   baseURL: BASE,
