@@ -51,13 +51,37 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
     });
 
-    // ─── LOGIN ─────────────────────────────────────────────────────────────────
-    emit('log', { message: 'Navigating to Naukri login...', type: 'info' });
-    await page.goto('https://www.naukri.com/nlogin/login', { waitUntil: 'networkidle2', timeout: 30000 });
-    await randomDelay(1500, 2500);
+    // ─── COOKIE INJECTION (BYPASS LOGIN) ──────────────────────────────────────
+    let loggedInWithCookies = false;
+    if (credential.cookies && credential.cookies.trim() !== '') {
+      try {
+        const cookiesArr = JSON.parse(credential.cookies);
+        if (Array.isArray(cookiesArr) && cookiesArr.length > 0) {
+          emit('log', { message: 'Injecting session cookies to bypass login...', type: 'info' });
+          await page.setCookie(...cookiesArr);
+          await page.goto('https://www.naukri.com/mnj/dashboard', { waitUntil: 'networkidle2', timeout: 30000 });
+          await randomDelay(2000, 4000);
+          
+          if (!page.url().includes('login') && !page.url().includes('nlogin')) {
+            emit('log', { message: 'Cookie injection successful! Logged in.', type: 'success' });
+            loggedInWithCookies = true;
+          } else {
+            emit('log', { message: 'Cookies expired or invalid. Falling back to password login...', type: 'warning' });
+          }
+        }
+      } catch (err) {
+        emit('log', { message: 'Failed to parse cookies JSON. Falling back to password login...', type: 'warning' });
+      }
+    }
 
-    // Try multiple possible selectors for email/username field
-    const emailSelectors = ['#usernameField', 'input[placeholder*="email" i]', 'input[name="username"]', 'input[type="email"]'];
+    // ─── LOGIN ─────────────────────────────────────────────────────────────────
+    if (!loggedInWithCookies) {
+      emit('log', { message: 'Navigating to Naukri login...', type: 'info' });
+      await page.goto('https://www.naukri.com/nlogin/login', { waitUntil: 'networkidle2', timeout: 30000 });
+      await randomDelay(1500, 2500);
+
+      // Try multiple possible selectors for email/username field
+      const emailSelectors = ['#usernameField', 'input[placeholder*="email" i]', 'input[name="username"]', 'input[type="email"]'];
     let emailField = null;
     for (const sel of emailSelectors) {
       emailField = await page.$(sel).catch(() => null);
@@ -181,15 +205,16 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
       }
     }
 
-    // Verify we're logged in by checking URL / page content
-    const loggedInUrl = page.url();
-    if (loggedInUrl.includes('/login') || loggedInUrl.includes('/nlogin')) {
-      const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
-      const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
-      emit('log', { message: 'Screenshot of the failed login page:', type: 'screenshot', image: base64Img });
-      
-      throw new Error('Naukri login failed — still on login page. Check credentials or OTP.');
-    }
+      // Verify we're logged in by checking URL / page content
+      const loggedInUrl = page.url();
+      if (loggedInUrl.includes('/login') || loggedInUrl.includes('/nlogin')) {
+        const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
+        const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
+        emit('log', { message: 'Screenshot of the failed login page:', type: 'screenshot', image: base64Img });
+        
+        throw new Error('Naukri login failed — still on login page. Check credentials or OTP.');
+      }
+    } // END of if (!loggedInWithCookies)
 
     emit('log', { message: 'Logged into Naukri successfully', type: 'success' });
 

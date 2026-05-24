@@ -21,6 +21,10 @@ const platformCredentialSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Password is required'],
     },
+    cookies: {
+      type: String,
+      default: '',
+    },
     label: {
       type: String,
       default: '',

@@ -12,7 +12,13 @@ const platformMeta = (p) => PLATFORMS.find((pl) => pl.value === p) || { label: p
 
 const CredentialsPage = () => {
   const [credentials, setCredentials] = useState([]);
-  const [form, setForm] = useState({ platform: 'naukri', username: '', password: '', label: '' });
+  const [form, setForm] = useState({
+    platform: 'naukri',
+    label: '',
+    username: '',
+    password: '',
+    cookies: '',
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -47,7 +53,7 @@ const CredentialsPage = () => {
     try {
       await api.post('/credentials', form);
       setSuccess(`${platformMeta(form.platform).label} credentials saved!`);
-      setForm({ platform: 'naukri', username: '', password: '', label: '' });
+      setForm({ platform: 'naukri', label: '', username: '', password: '', cookies: '' });
       fetchCredentials();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save credentials');
@@ -180,6 +186,21 @@ const CredentialsPage = () => {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+            </div>
+
+            {/* Cookies (Optional) */}
+            <div>
+              <label className="label" htmlFor="cred-cookies">
+                Session Cookies <span className="text-text-muted font-normal">(optional bypass)</span>
+              </label>
+              <textarea
+                id="cred-cookies"
+                name="cookies"
+                className="input-field min-h-[80px] font-mono text-xs"
+                placeholder='Paste exported cookies JSON here to bypass OTP...'
+                value={form.cookies}
+                onChange={handleChange}
+              />
             </div>
 
             {/* Feedback */}
