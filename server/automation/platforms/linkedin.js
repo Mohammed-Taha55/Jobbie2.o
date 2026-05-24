@@ -25,36 +25,99 @@ const applyLinkedIn = async ({ searchDoc, credential, resumePath, io, userId }) 
     browser = await puppeteer.launch(getBrowserOptions());
 
     const page = await browser.newPage();
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+    
+    // Extreme Stealth
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-IN,en-US;q=0.9,en;q=0.8',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Dest': 'document',
+    });
+    
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-IN', 'en-US', 'en'] });
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
 
-    // ─── LOGIN ─────────────────────────────────────────────────────────────────
-    emit('log', { message: 'Navigating to LinkedIn login...', type: 'info' });
-    await page.goto('https://www.linkedin.com/login', { waitUntil: 'networkidle2', timeout: 30000 });
-    await randomDelay(1000, 2000);
+    // ─── COOKIE INJECTION (BYPASS LOGIN) ──────────────────────────────────────
+    let loggedInWithCookies = false;
+    if (credential.cookies && credential.cookies.trim() !== '') {
+      try {
+        const cookiesArr = JSON.parse(credential.cookies);
+        if (Array.isArray(cookiesArr) && cookiesArr.length > 0) {
+          emit('log', { message: 'Sanitizing and injecting session cookies...', type: 'info' });
+          
+          const sanitizedCookies = cookiesArr.map(c => {
+            let sameSite = c.sameSite;
+            if (sameSite === 'no_restriction' || sameSite === 'None') sameSite = 'None';
+            else if (sameSite === 'unspecified' || sameSite === 'lax') sameSite = 'Lax';
+            else if (sameSite === 'strict') sameSite = 'Strict';
+            else sameSite = undefined;
 
-    await page.waitForSelector('#username', { timeout: 15000 });
-    await page.type('#username', credential.username, { delay: 70 });
-    await randomDelay(400, 800);
+            return {
+              name: c.name,
+              value: c.value,
+              domain: c.domain,
+              path: c.path || '/',
+              expires: c.expirationDate || c.expires,
+              httpOnly: c.httpOnly,
+              secure: c.secure,
+              sameSite
+            };
+          });
 
-    await page.waitForSelector('#password', { timeout: 10000 });
-    await page.type('#password', credential.password, { delay: 70 });
-    await randomDelay(400, 800);
-
-    await page.click('button[type="submit"]');
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 25000 }).catch(() => {});
-    await randomDelay(2000, 4000);
-
-    // Check login errors
-    const loginError = await page.$('.alert-content, .login__form_action_container .error').catch(() => null);
-    if (loginError) {
-      const errText = await page.evaluate((el) => el.innerText, loginError).catch(() => '');
-      throw new Error(`LinkedIn login failed: ${errText || 'Invalid credentials'}`);
+          await page.setCookie(...sanitizedCookies);
+          await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'networkidle2', timeout: 30000 });
+          await randomDelay(2000, 4000);
+          
+          if (!page.url().includes('/login') && !page.url().includes('/checkpoint')) {
+            emit('log', { message: 'Cookie injection successful! Logged in.', type: 'success' });
+            loggedInWithCookies = true;
+          } else {
+            emit('log', { message: 'Cookies expired or invalid. Falling back to password login...', type: 'warning' });
+          }
+        }
+      } catch (err) {
+        console.error('Cookie injection error:', err);
+        emit('log', { message: `Cookie injection failed: ${err.message}`, type: 'error' });
+      }
     }
 
-    // Check if we're on the feed or home page (logged in)
-    const currentUrl = page.url();
-    if (currentUrl.includes('/login') || currentUrl.includes('/checkpoint')) {
-      throw new Error('LinkedIn login blocked — may require CAPTCHA or 2FA. Please login manually once.');
+    // ─── LOGIN ─────────────────────────────────────────────────────────────────
+    if (!loggedInWithCookies) {
+      emit('log', { message: 'Navigating to LinkedIn login...', type: 'info' });
+      await page.goto('https://www.linkedin.com/login', { waitUntil: 'networkidle2', timeout: 30000 });
+      await randomDelay(1000, 2000);
+
+      await page.waitForSelector('#username', { timeout: 15000 });
+      await page.type('#username', credential.username, { delay: 70 });
+      await randomDelay(400, 800);
+
+      await page.waitForSelector('#password', { timeout: 10000 });
+      await page.type('#password', credential.password, { delay: 70 });
+      await randomDelay(400, 800);
+
+      await page.click('button[type="submit"]');
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 25000 }).catch(() => {});
+      await randomDelay(2000, 4000);
+
+      // Check login errors
+      const loginError = await page.$('.alert-content, .login__form_action_container .error').catch(() => null);
+      if (loginError) {
+        const errText = await page.evaluate((el) => el.innerText, loginError).catch(() => '');
+        throw new Error(`LinkedIn login failed: ${errText || 'Invalid credentials'}`);
+      }
+
+      // Check if we're on the feed or home page (logged in)
+      const currentUrl = page.url();
+      if (currentUrl.includes('/login') || currentUrl.includes('/checkpoint')) {
+        const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
+        const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
+        emit('log', { message: 'Screenshot of the failed login page:', type: 'screenshot', image: base64Img });
+        throw new Error('LinkedIn login blocked — may require CAPTCHA or 2FA. Please login manually once.');
+      }
     }
 
     emit('log', { message: 'Logged into LinkedIn successfully', type: 'success' });

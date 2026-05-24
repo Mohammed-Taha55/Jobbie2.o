@@ -25,29 +25,97 @@ const applyIndeed = async ({ searchDoc, credential, resumePath, io, userId }) =>
     browser = await puppeteer.launch(getBrowserOptions());
 
     const page = await browser.newPage();
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+    
+    // Extreme Stealth
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-IN,en-US;q=0.9,en;q=0.8',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Dest': 'document',
+    });
+    
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-IN', 'en-US', 'en'] });
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
+
+    // --- COOKIE INJECTION (BYPASS LOGIN) ---
+    let loggedInWithCookies = false;
+    if (credential.cookies && credential.cookies.trim() !== '') {
+      try {
+        const cookiesArr = JSON.parse(credential.cookies);
+        if (Array.isArray(cookiesArr) && cookiesArr.length > 0) {
+          emit('log', { message: 'Sanitizing and injecting session cookies...', type: 'info' });
+          
+          const sanitizedCookies = cookiesArr.map(c => {
+            let sameSite = c.sameSite;
+            if (sameSite === 'no_restriction' || sameSite === 'None') sameSite = 'None';
+            else if (sameSite === 'unspecified' || sameSite === 'lax') sameSite = 'Lax';
+            else if (sameSite === 'strict') sameSite = 'Strict';
+            else sameSite = undefined;
+
+            return {
+              name: c.name,
+              value: c.value,
+              domain: c.domain,
+              path: c.path || '/',
+              expires: c.expirationDate || c.expires,
+              httpOnly: c.httpOnly,
+              secure: c.secure,
+              sameSite
+            };
+          });
+
+          await page.setCookie(...sanitizedCookies);
+          await page.goto('https://www.indeed.com', { waitUntil: 'networkidle2', timeout: 30000 });
+          await randomDelay(2000, 4000);
+          
+          if (!page.url().includes('/auth')) {
+            emit('log', { message: 'Cookie injection successful! Logged in.', type: 'success' });
+            loggedInWithCookies = true;
+          } else {
+            emit('log', { message: 'Cookies expired or invalid. Falling back to password login...', type: 'warning' });
+          }
+        }
+      } catch (err) {
+        console.error('Cookie injection error:', err);
+        emit('log', { message: `Cookie injection failed: ${err.message}`, type: 'error' });
+      }
+    }
 
     // --- LOGIN ---
-    emit('log', { message: 'Navigating to Indeed login...', type: 'info' });
-    await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 30000 });
-    await randomDelay(1500, 2500);
+    if (!loggedInWithCookies) {
+      emit('log', { message: 'Navigating to Indeed login...', type: 'info' });
+      await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 30000 });
+      await randomDelay(1500, 2500);
 
-    await page.waitForSelector('input[name="__email"]', { timeout: 15000 });
-    await page.type('input[name="__email"]', credential.username, { delay: 80 });
-    await randomDelay(500, 1000);
+      await page.waitForSelector('input[name="__email"]', { timeout: 15000 });
+      await page.type('input[name="__email"]', credential.username, { delay: 80 });
+      await randomDelay(500, 1000);
 
-    const emailBtn = await page.$('button[type="submit"]');
-    if (emailBtn) await emailBtn.click();
-    await randomDelay(2000, 3000);
+      const emailBtn = await page.$('button[type="submit"]');
+      if (emailBtn) await emailBtn.click();
+      await randomDelay(2000, 3000);
 
-    await page.waitForSelector('input[name="__password"]', { timeout: 15000 });
-    await page.type('input[name="__password"]', credential.password, { delay: 80 });
-    await randomDelay(500, 1000);
+      await page.waitForSelector('input[name="__password"]', { timeout: 15000 });
+      await page.type('input[name="__password"]', credential.password, { delay: 80 });
+      await randomDelay(500, 1000);
 
-    const passBtn = await page.$('button[type="submit"]');
-    if (passBtn) await passBtn.click();
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }).catch(() => {});
-    await randomDelay(2000, 4000);
+      const passBtn = await page.$('button[type="submit"]');
+      if (passBtn) await passBtn.click();
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }).catch(() => {});
+      await randomDelay(2000, 4000);
+      
+      const currentUrl = page.url();
+      if (currentUrl.includes('/auth') || currentUrl.includes('captcha')) {
+        const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
+        const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
+        emit('log', { message: 'Screenshot of the failed login page:', type: 'screenshot', image: base64Img });
+        throw new Error('Indeed login failed — stuck on auth/captcha page.');
+      }
+    }
 
     emit('log', { message: 'Logged in to Indeed successfully', type: 'success' });
 
