@@ -95,6 +95,11 @@ io.on('connection', (socket) => {
 // MongoDB Connection
 const connectDB = async () => {
   try {
+    if (!process.env.MONGODB_URI) {
+      logger.error('CRITICAL ERROR: MONGODB_URI environment variable is missing.');
+      logger.error('Please add MONGODB_URI to your environment variables (e.g., in the Railway dashboard).');
+      process.exit(1);
+    }
     await mongoose.connect(process.env.MONGODB_URI);
     logger.info('MongoDB Atlas connected successfully');
   } catch (err) {
