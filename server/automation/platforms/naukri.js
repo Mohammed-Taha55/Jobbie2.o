@@ -79,73 +79,75 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
     }
 
     // ─── OTP DETECTION (Robust Text Scan) ───
-    const needsOtp = await page.evaluate(() => {
-      const text = document.body.innerText.toLowerCase();
-      return text.includes('enter otp') || 
-             text.includes('otp sent') || 
-             text.includes('verification code') ||
-             text.includes('one time password');
-    });
-
-    if (needsOtp) {
-      emit('log', { message: 'OTP Required. Waiting for user input...', type: 'warning' });
-      emit('otp_required', { message: 'Naukri has sent an OTP to your email. Please enter it here to continue.' });
-
-      // Pause automation and wait for the user to submit the OTP via the API -> EventBus
-      const otpPromise = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('OTP timeout — you did not enter the OTP within 2 minutes.')), 120000);
-        eventBus.once(`otp:${searchId}`, (otpCode) => {
-          clearTimeout(timeout);
-          resolve(otpCode);
-        });
+    if (page.url().includes('login')) {
+      const needsOtp = await page.evaluate(() => {
+        const text = document.body.innerText.toLowerCase();
+        return text.includes('enter otp') || 
+               text.includes('otp sent') || 
+               text.includes('verification code') ||
+               text.includes('one time password');
       });
 
-      const otpCode = await otpPromise;
-      emit('log', { message: 'OTP received, injecting...', type: 'info' });
-      
-      // We might not know the exact selector, so we try a fallback approach:
-      // 1. Try known selectors first
-      const otpSelectors = [
-        '#otp', 'input[name="otp"]', 'input[placeholder*="OTP" i]', '.otp-input',
-        'input[id*="otp" i]', 'input[class*="otp" i]', 'input[name*="otp" i]',
-        'input[id="verificationCode"]'
-      ];
-      let injected = false;
-      for (const sel of otpSelectors) {
-        const field = await page.$(sel).catch(() => null);
-        if (field) {
-          await field.click({ clickCount: 3 });
-          await field.type(otpCode, { delay: 100 });
-          injected = true;
-          break;
-        }
-      }
+      if (needsOtp) {
+        emit('log', { message: 'OTP Required. Waiting for user input...', type: 'warning' });
+        emit('otp_required', { message: 'Naukri has sent an OTP to your email. Please enter it here to continue.' });
 
-      // 2. If no selector found, find the first visible input that isn't email/password and type into it
-      if (!injected) {
-        await page.evaluate((code) => {
-          const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
-          const visibleInput = inputs.find(i => i.offsetWidth > 0 && i.offsetHeight > 0);
-          if (visibleInput) {
-            visibleInput.focus();
-            visibleInput.value = code;
-            visibleInput.dispatchEvent(new Event('input', { bubbles: true }));
-            visibleInput.dispatchEvent(new Event('change', { bubbles: true }));
+        // Pause automation and wait for the user to submit the OTP via the API -> EventBus
+        const otpPromise = new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('OTP timeout — you did not enter the OTP within 2 minutes.')), 120000);
+          eventBus.once(`otp:${searchId}`, (otpCode) => {
+            clearTimeout(timeout);
+            resolve(otpCode);
+          });
+        });
+
+        const otpCode = await otpPromise;
+        emit('log', { message: 'OTP received, injecting...', type: 'info' });
+        
+        // We might not know the exact selector, so we try a fallback approach:
+        // 1. Try known selectors first
+        const otpSelectors = [
+          '#otp', 'input[name="otp"]', 'input[placeholder*="OTP" i]', '.otp-input',
+          'input[id*="otp" i]', 'input[class*="otp" i]', 'input[name*="otp" i]',
+          'input[id="verificationCode"]'
+        ];
+        let injected = false;
+        for (const sel of otpSelectors) {
+          const field = await page.$(sel).catch(() => null);
+          if (field) {
+            await field.click({ clickCount: 3 });
+            await field.type(otpCode, { delay: 100 });
+            injected = true;
+            break;
           }
-        }, otpCode);
-        // Also send keystrokes just in case React needs it
-        await page.keyboard.type(otpCode, { delay: 100 });
+        }
+
+        // 2. If no selector found, find the first visible input that isn't email/password and type into it
+        if (!injected) {
+          await page.evaluate((code) => {
+            const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
+            const visibleInput = inputs.find(i => i.offsetWidth > 0 && i.offsetHeight > 0);
+            if (visibleInput) {
+              visibleInput.focus();
+              visibleInput.value = code;
+              visibleInput.dispatchEvent(new Event('input', { bubbles: true }));
+              visibleInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }, otpCode);
+          // Also send keystrokes just in case React needs it
+          await page.keyboard.type(otpCode, { delay: 100 });
+        }
+
+        await randomDelay(500, 1000);
+
+        // Try submitting
+        const otpSubmit = await page.$('button[type="submit"], button#submitOtp, .submit-btn, button').catch(() => null);
+        if (otpSubmit) await otpSubmit.click();
+        else await page.keyboard.press('Enter'); // Fallback to Enter key
+        
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 25000 }).catch(() => {});
+        await randomDelay(2000, 4000);
       }
-
-      await randomDelay(500, 1000);
-
-      // Try submitting
-      const otpSubmit = await page.$('button[type="submit"], button#submitOtp, .submit-btn, button').catch(() => null);
-      if (otpSubmit) await otpSubmit.click();
-      else await page.keyboard.press('Enter'); // Fallback to Enter key
-      
-      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 25000 }).catch(() => {});
-      await randomDelay(2000, 4000);
     }
 
     // Verify we're logged in by checking URL / page content
