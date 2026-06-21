@@ -5,9 +5,12 @@ import api from '../api';
 import LiveConsole from '../components/LiveConsole';
 
 const PLATFORMS = [
-  { value: 'naukri', label: 'Naukri' },
-  { value: 'indeed', label: 'Indeed' },
-  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'naukri',    label: 'Naukri' },
+  { value: 'indeed',    label: 'Indeed' },
+  { value: 'linkedin',  label: 'LinkedIn' },
+  { value: 'iimjobs',   label: 'IIMJobs' },
+  { value: 'instahyre', label: 'Instahyre' },
+  { value: 'foundit',   label: 'Foundit' },
 ];
 const EXPERIENCE = [
   { value: 'any', label: 'Any Experience' },
@@ -219,7 +222,7 @@ const AutomatePage = () => {
                     key={p.value}
                     type="button"
                     onClick={() => { setForm((prev) => ({ ...prev, platform: p.value, credentialId: '' })); }}
-                    className={`py-2.5 px-4 rounded-lg border text-sm font-medium transition-all duration-200 ${
+                    className={`py-2 px-1 rounded-lg border text-xs sm:text-sm font-medium transition-all duration-200 text-center ${
                       form.platform === p.value
                         ? 'bg-accent-muted border-accent/40 text-accent'
                         : 'bg-surface-2 border-border text-text-secondary hover:border-border-active'
@@ -427,9 +430,10 @@ const AutomatePage = () => {
               <h3 className="text-text-primary font-medium mb-3 text-sm">Before you start</h3>
               <ul className="space-y-2 text-sm text-text-secondary">
                 {[
-                  'Add your Naukri, Indeed, or LinkedIn credentials in the Credentials page',
+                  'Add your platform credentials (email + password) in the Credentials page',
                   'Upload your resume (PDF) in the Resume page',
-                  'LinkedIn Easy Apply only — jobs without Easy Apply are skipped',
+                  'LinkedIn & Indeed: Only Easy Apply jobs are applied to — others are skipped',
+                  'IIMJobs, Instahyre & Foundit: Direct apply buttons are used on each job listing',
                   'Use specific keywords for better job matches',
                   'Keep max applications reasonable to avoid account flags',
                 ].map((tip, i) => (

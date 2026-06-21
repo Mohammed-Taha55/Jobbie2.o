@@ -9,7 +9,7 @@ const platformCredentialSchema = new mongoose.Schema(
     },
     platform: {
       type: String,
-      enum: ['naukri', 'indeed', 'linkedin'],
+      enum: ['naukri', 'indeed', 'linkedin', 'iimjobs', 'instahyre', 'foundit'],
       required: true,
     },
     username: {
@@ -20,10 +20,6 @@ const platformCredentialSchema = new mongoose.Schema(
     encryptedPassword: {
       type: String,
       required: [true, 'Password is required'],
-    },
-    cookies: {
-      type: String,
-      default: '',
     },
     label: {
       type: String,

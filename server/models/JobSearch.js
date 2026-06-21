@@ -9,7 +9,7 @@ const jobSearchSchema = new mongoose.Schema(
     },
     platform: {
       type: String,
-      enum: ['naukri', 'indeed', 'linkedin'],
+      enum: ['naukri', 'indeed', 'linkedin', 'iimjobs', 'instahyre', 'foundit'],
       required: true,
     },
     credentialId: {

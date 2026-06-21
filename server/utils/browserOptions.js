@@ -13,15 +13,19 @@ const getBrowserOptions = () => {
     '--disable-dev-shm-usage',
     '--disable-gpu',
     '--no-first-run',
-    '--no-zygote',
-    '--single-process',  // Required on Railway (limited resources)
     '--window-size=1440,900',
   ];
+
+  // --single-process is required on Railway (limited resources) but CRASHES Chromium on Mac
+  if (isProd) {
+    args.push('--no-zygote', '--single-process');
+  }
 
   const options = {
     headless: true,
     args,
     defaultViewport: { width: 1440, height: 900 },
+    ignoreHTTPSErrors: true,
     env: {
       ...process.env,
       TZ: 'Asia/Kolkata', // Force Indian timezone

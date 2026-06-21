@@ -51,58 +51,13 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
     });
 
-    // ─── COOKIE INJECTION (BYPASS LOGIN) ──────────────────────────────────────
-    let loggedInWithCookies = false;
-    if (credential.cookies && credential.cookies.trim() !== '') {
-      try {
-        const cookiesArr = JSON.parse(credential.cookies);
-        if (Array.isArray(cookiesArr) && cookiesArr.length > 0) {
-          emit('log', { message: 'Sanitizing and injecting session cookies...', type: 'info' });
-          
-          const sanitizedCookies = cookiesArr.map(c => {
-            let sameSite = c.sameSite;
-            if (sameSite === 'no_restriction' || sameSite === 'None') sameSite = 'None';
-            else if (sameSite === 'unspecified' || sameSite === 'lax') sameSite = 'Lax';
-            else if (sameSite === 'strict') sameSite = 'Strict';
-            else sameSite = undefined;
-
-            return {
-              name: c.name,
-              value: c.value,
-              domain: c.domain,
-              path: c.path || '/',
-              expires: c.expirationDate || c.expires,
-              httpOnly: c.httpOnly,
-              secure: c.secure,
-              sameSite
-            };
-          });
-
-          await page.setCookie(...sanitizedCookies);
-          await page.goto('https://www.naukri.com/mnj/dashboard', { waitUntil: 'networkidle2', timeout: 30000 });
-          await randomDelay(2000, 4000);
-          
-          if (!page.url().includes('login') && !page.url().includes('nlogin')) {
-            emit('log', { message: 'Cookie injection successful! Logged in.', type: 'success' });
-            loggedInWithCookies = true;
-          } else {
-            emit('log', { message: 'Cookies expired or invalid. Falling back to password login...', type: 'warning' });
-          }
-        }
-      } catch (err) {
-        console.error('Cookie injection error:', err);
-        emit('log', { message: `Cookie injection failed: ${err.message}`, type: 'error' });
-      }
-    }
-
     // ─── LOGIN ─────────────────────────────────────────────────────────────────
-    if (!loggedInWithCookies) {
-      emit('log', { message: 'Navigating to Naukri login...', type: 'info' });
-      await page.goto('https://www.naukri.com/nlogin/login', { waitUntil: 'networkidle2', timeout: 30000 });
-      await randomDelay(1500, 2500);
+    emit('log', { message: 'Navigating to Naukri login...', type: 'info' });
+    await page.goto('https://www.naukri.com/nlogin/login', { waitUntil: 'networkidle2', timeout: 30000 });
+    await randomDelay(1500, 2500);
 
-      // Try multiple possible selectors for email/username field
-      const emailSelectors = ['#usernameField', 'input[placeholder*="email" i]', 'input[name="username"]', 'input[type="email"]'];
+    // Try multiple possible selectors for email/username field
+    const emailSelectors = ['#usernameField', 'input[placeholder*="email" i]', 'input[name="username"]', 'input[type="email"]'];
     let emailField = null;
     for (const sel of emailSelectors) {
       emailField = await page.$(sel).catch(() => null);
@@ -145,7 +100,6 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
 
     // ─── OTP DETECTION (Robust Text Scan) ───
     const currentUrl = page.url();
-    // Only skip OTP check if we are definitively on the dashboard
     if (!currentUrl.includes('/mnj/dashboard') && !currentUrl.includes('job-search')) {
       const needsOtp = await page.evaluate(() => {
         const text = document.body.innerText.toLowerCase();
@@ -159,7 +113,6 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
         emit('log', { message: 'OTP Required. Waiting for user input...', type: 'warning' });
         emit('otp_required', { message: 'Naukri has sent an OTP to your email. Please enter it here to continue.' });
 
-        // Pause automation and wait for the user to submit the OTP via the API -> EventBus
         const otpPromise = new Promise((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error('OTP timeout — you did not enter the OTP within 2 minutes.')), 120000);
           eventBus.once(`otp:${searchId}`, (otpCode) => {
@@ -171,8 +124,6 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
         const otpCode = await otpPromise;
         emit('log', { message: 'OTP received, injecting...', type: 'info' });
         
-        // We might not know the exact selector, so we try a fallback approach:
-        // 1. Try known selectors first
         const otpSelectors = [
           '#otp', 'input[name="otp"]', 'input[placeholder*="OTP" i]', '.otp-input',
           'input[id*="otp" i]', 'input[class*="otp" i]', 'input[name*="otp" i]',
@@ -183,14 +134,12 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
           const field = await page.$(sel).catch(() => null);
           if (field) {
             await field.click({ clickCount: 3 });
-            // Type slowly using keyboard to allow React to auto-advance to next boxes if it's a 6-box input
             await page.keyboard.type(otpCode, { delay: 200 });
             injected = true;
             break;
           }
         }
 
-        // 2. If no selector found, find the first visible input that isn't email/password and type into it
         if (!injected) {
           await page.evaluate((code) => {
             const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
@@ -202,20 +151,17 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
               visibleInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
           }, otpCode);
-          // Also send keystrokes just in case React needs it
           await page.keyboard.type(otpCode, { delay: 100 });
         }
 
         await randomDelay(500, 1000);
 
-        // Try submitting (look specifically for Submit/Verify buttons to avoid clicking "Resend OTP")
         const submitXPath = "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'submit') or contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'verify') or contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'login')]";
         const otpSubmits = await page.$x(submitXPath).catch(() => []);
         
         if (otpSubmits && otpSubmits.length > 0) {
           await otpSubmits[0].click();
         } else {
-          // Fallback to searching by type, then Enter
           const fallbackSubmit = await page.$('button[type="submit"], button#submitOtp').catch(() => null);
           if (fallbackSubmit) await fallbackSubmit.click();
           else await page.keyboard.press('Enter'); 
@@ -226,18 +172,17 @@ const applyNaukri = async ({ searchDoc, credential, resumePath, io, userId }) =>
       }
     }
 
-      // Verify we're logged in by checking URL / page content
-      const loggedInUrl = page.url();
-      if (loggedInUrl.includes('/login') || loggedInUrl.includes('/nlogin')) {
-        const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
-        const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
-        emit('log', { message: 'Screenshot of the failed login page:', type: 'screenshot', image: base64Img });
-        
-        throw new Error('Naukri login failed — still on login page. Check credentials or OTP.');
-      }
-    } // END of if (!loggedInWithCookies)
+    // Verify we're logged in
+    const loggedInUrl = page.url();
+    if (loggedInUrl.includes('/login') || loggedInUrl.includes('/nlogin')) {
+      const screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 50 });
+      const base64Img = `data:image/jpeg;base64,${screenshotBuf.toString('base64')}`;
+      emit('log', { message: 'Screenshot of the failed login page:', type: 'screenshot', image: base64Img });
+      throw new Error('Naukri login failed — still on login page. Check credentials or OTP.');
+    }
 
     emit('log', { message: 'Logged into Naukri successfully', type: 'success' });
+
 
     // ─── BUILD SEARCH URL ──────────────────────────────────────────────────────
     const keyword = searchDoc.keywords.trim().replace(/\s+/g, '-');

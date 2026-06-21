@@ -5,6 +5,9 @@ const { decrypt } = require('../utils/encryption');
 const { applyNaukri } = require('./platforms/naukri');
 const { applyIndeed } = require('./platforms/indeed');
 const { applyLinkedIn } = require('./platforms/linkedin');
+const { applyIIMJobs } = require('./platforms/iimjobs');
+const { applyInstahyre } = require('./platforms/instahyre');
+const { applyFoundit } = require('./platforms/foundit');
 const logger = require('../utils/logger');
 
 // Active sessions map: searchId -> { status }
@@ -39,7 +42,7 @@ const startAutomation = async ({ searchDoc, io, userId }) => {
 
     const opts = {
       searchDoc,
-      credential: { username: credential.username, password: decryptedPassword, cookies: credential.cookies },
+      credential: { username: credential.username, password: decryptedPassword },
       resumePath: resume.path,
       io,
       userId,
@@ -51,6 +54,12 @@ const startAutomation = async ({ searchDoc, io, userId }) => {
       await applyIndeed(opts);
     } else if (searchDoc.platform === 'linkedin') {
       await applyLinkedIn(opts);
+    } else if (searchDoc.platform === 'iimjobs') {
+      await applyIIMJobs(opts);
+    } else if (searchDoc.platform === 'instahyre') {
+      await applyInstahyre(opts);
+    } else if (searchDoc.platform === 'foundit') {
+      await applyFoundit(opts);
     } else {
       throw new Error(`Unsupported platform: ${searchDoc.platform}`);
     }

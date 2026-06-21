@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Plus, Trash2, Eye, EyeOff, Loader2, Shield, ChevronDown, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { KeyRound, Plus, Trash2, Eye, EyeOff, Loader2, Shield, AlertCircle, CheckCircle2 } from 'lucide-react';
 import api from '../api';
 
 const PLATFORMS = [
-  { value: 'naukri',   label: 'Naukri.com',  color: 'bg-orange-500/15 text-orange-400 border-orange-500/20' },
-  { value: 'indeed',   label: 'Indeed.com',  color: 'bg-sky-500/15 text-sky-400 border-sky-500/20' },
-  { value: 'linkedin', label: 'LinkedIn',    color: 'bg-blue-600/15 text-blue-400 border-blue-600/20' },
+  { value: 'naukri',    label: 'Naukri',     color: 'bg-orange-500/15 text-orange-400 border-orange-500/20' },
+  { value: 'indeed',    label: 'Indeed',     color: 'bg-sky-500/15 text-sky-400 border-sky-500/20' },
+  { value: 'linkedin',  label: 'LinkedIn',   color: 'bg-blue-600/15 text-blue-400 border-blue-600/20' },
+  { value: 'iimjobs',   label: 'IIMJobs',    color: 'bg-green-600/15 text-green-400 border-green-600/20' },
+  { value: 'instahyre', label: 'Instahyre',  color: 'bg-purple-500/15 text-purple-400 border-purple-500/20' },
+  { value: 'foundit',   label: 'Foundit',    color: 'bg-rose-500/15 text-rose-400 border-rose-500/20' },
 ];
 
 const platformMeta = (p) => PLATFORMS.find((pl) => pl.value === p) || { label: p, color: 'bg-gray-500/15 text-gray-400 border-gray-500/20' };
@@ -17,7 +20,6 @@ const CredentialsPage = () => {
     label: '',
     username: '',
     password: '',
-    cookies: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -53,7 +55,7 @@ const CredentialsPage = () => {
     try {
       await api.post('/credentials', form);
       setSuccess(`${platformMeta(form.platform).label} credentials saved!`);
-      setForm({ platform: 'naukri', label: '', username: '', password: '', cookies: '' });
+      setForm({ platform: 'naukri', label: '', username: '', password: '' });
       fetchCredentials();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save credentials');
@@ -81,7 +83,7 @@ const CredentialsPage = () => {
       <div className="mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-2xl font-semibold text-text-primary">Credentials</h1>
         <p className="text-text-secondary text-sm mt-1">
-          Manage platform login credentials. Passwords are encrypted with AES-256.
+          Add your job platform email and password so Jobbie can apply on your behalf.
         </p>
       </div>
 
@@ -101,16 +103,16 @@ const CredentialsPage = () => {
                 Add / Update Credential
               </h2>
               <p className="text-text-muted text-xs mt-0.5 leading-tight">
-                One credential per platform
+                One account per platform
               </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Platform selector — pill buttons on mobile */}
+            {/* Platform selector — 3-col grid */}
             <div>
-              <label className="label">Platform</label>
+              <label className="label">Select Platform</label>
               <div className="grid grid-cols-3 gap-2">
                 {PLATFORMS.map((p) => (
                   <button
@@ -144,13 +146,13 @@ const CredentialsPage = () => {
               />
             </div>
 
-            {/* Email / Username */}
+            {/* Email */}
             <div>
-              <label className="label" htmlFor="cred-username">Email / Username</label>
+              <label className="label" htmlFor="cred-username">Email Address</label>
               <input
                 id="cred-username"
                 name="username"
-                type="text"
+                type="email"
                 inputMode="email"
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -188,21 +190,6 @@ const CredentialsPage = () => {
               </div>
             </div>
 
-            {/* Cookies (Optional) */}
-            <div>
-              <label className="label" htmlFor="cred-cookies">
-                Session Cookies <span className="text-text-muted font-normal">(optional bypass)</span>
-              </label>
-              <textarea
-                id="cred-cookies"
-                name="cookies"
-                className="input-field min-h-[80px] font-mono text-xs"
-                placeholder='Paste exported cookies JSON here to bypass OTP...'
-                value={form.cookies}
-                onChange={handleChange}
-              />
-            </div>
-
             {/* Feedback */}
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-sm flex items-start gap-2">
@@ -217,7 +204,7 @@ const CredentialsPage = () => {
               </div>
             )}
 
-            {/* Submit — full width, large tap target */}
+            {/* Submit */}
             <button
               type="submit"
               id="cred-save-btn"
@@ -233,7 +220,7 @@ const CredentialsPage = () => {
           <div className="mt-4 bg-surface-2 border border-border rounded-lg p-3 sm:p-4 flex items-start gap-3">
             <Shield size={15} className="text-accent shrink-0 mt-0.5" />
             <p className="text-text-muted text-xs leading-relaxed">
-              Credentials are encrypted with AES-256 before storage and only decrypted in memory during automation.
+              Your email and password are encrypted with AES-256 before storage. They are only decrypted in memory when automation runs, never stored in plain text.
             </p>
           </div>
         </div>
@@ -241,7 +228,7 @@ const CredentialsPage = () => {
         {/* ── SAVED CREDENTIALS ─────────────────────────────── */}
         <div className="glass-card p-4 sm:p-6">
           <h2 className="text-text-primary font-semibold mb-4 sm:mb-6 text-sm sm:text-base">
-            Saved Credentials
+            Saved Accounts
             {credentials.length > 0 && (
               <span className="ml-2 px-2 py-0.5 bg-accent-muted text-accent text-xs rounded-full border border-accent/20 font-medium">
                 {credentials.length}
@@ -259,8 +246,8 @@ const CredentialsPage = () => {
               <div className="p-4 bg-surface-2 rounded-full mb-4">
                 <KeyRound size={24} className="text-text-muted" />
               </div>
-              <p className="text-text-secondary font-medium text-sm">No credentials saved</p>
-              <p className="text-text-muted text-xs mt-1">Add your first platform credential using the form</p>
+              <p className="text-text-secondary font-medium text-sm">No accounts saved yet</p>
+              <p className="text-text-muted text-xs mt-1">Add your first platform account using the form</p>
             </div>
 
           ) : (
@@ -290,7 +277,7 @@ const CredentialsPage = () => {
                       </div>
                     </div>
 
-                    {/* Right: delete button — 40×40 touch target */}
+                    {/* Right: delete button */}
                     <button
                       onClick={() => handleDelete(cred._id)}
                       disabled={deletingId === cred._id}
